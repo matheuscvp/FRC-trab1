@@ -6,10 +6,16 @@
 #include <arpa/inet.h>
 
 #define MAX_CLIENTS 10
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 512
 #define MAX_ROOMS 5
 #define MAX_ROOM_NAME 200
 #define MAX_USERS_IN_ROOM 15
+#define CLIENT_ID "747377703455-4pvmqqlo6ckc34he9aqtnqafbfj71pb3.apps.googleusercontent.com"
+#define CLIENT_SECRET "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"
+#define REDIRECT_URI "https://localhost:8888"
+#define AUTHORIZATION_ENDPOINT "https://accounts.google.com/o/oauth2/auth"
+#define TOKEN_ENDPOINT "https://accounts.google.com/o/oauth2/token"
+#define SCOPE "email"
 
 struct User
 {
@@ -53,6 +59,8 @@ int main()
     char client_message[BUFFER_SIZE] = "Connected to the chatroom.\n";
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
+
+    memset(buffer, 0, sizeof(buffer));
 
     // Criar socket do servidor
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
@@ -134,6 +142,17 @@ int main()
                     printf("New client connected: socket fd is %d, IP is %s, port is %d\n",
                            new_socket, inet_ntoa(address.sin_addr), ntohs(address.sin_port));
 
+                    // Solicita nome de usuário
+                    send(new_socket, "Digite seu nome de usuário: ", strlen("Digite seu nome de usuário: "), 0);
+                    char username[50];
+                    memset(username, 0, sizeof(username));
+                    valread = read(new_socket, username, sizeof(username) - 1);
+                    if (valread < 50)
+                    {
+
+                        username[valread - 2] = '\0';
+                    }
+
                     // Enviar menu interativo para o cliente
                     send_menu(new_socket);
 
@@ -142,6 +161,7 @@ int main()
                     newClient.id = nextClientID++;
                     newClient.socket = new_socket;
                     newClient.roomID = -1;
+                    strncpy(newClient.username, username, sizeof(username));
                     clients[totalClients++] = newClient;
 
                     break;
@@ -249,15 +269,21 @@ int main()
                         }
                         else
                         {
+                            if (strlen(buffer) >= BUFFER_SIZE)
+                            {
+                                buffer[BUFFER_SIZE - 1] = '\0'; // Ensure null termination
+                            }
                             // Enviar mensagem para todos os outros participantes da sala
                             for (int j = 0; j < totalClients; j++)
                             {
                                 if (clients[j].roomID == clients[i].roomID && clients[j].socket != sd)
                                 {
-                                    char message[BUFFER_SIZE];
+                                    char message[1024] = "[";
+                                    strcat(message, clients[i].username);
+                                    strcat(message, "] => ");
                                     strcat(message, buffer);
                                     strcat(message, "\n");
-                                    send(clients[j].socket, message, strlen(message), 0);
+                                    send(clients[j].socket, message, 1024, 0);
                                 }
                             }
                         }
@@ -391,29 +417,13 @@ void join_room(int socket, struct ChatRoom rooms[], int totalRooms, struct Clien
                             {
                                 clients[j].roomID = roomID;
 
-                                // Solicitar nome de usuário
-                                send(socket, "Digite seu nome de usuário: ", strlen("Digite seu nome de usuário: "), 0);
-                                char username[50];
-                                valread = read(socket, username, sizeof(username) - 1);
-                                if (valread > 0)
-                                {
-                                    // Remover o caractere de nova linha do buffer
-                                    if (username[valread - 1] == '\n')
-                                    {
-                                        username[valread - 1] = '\0';
-                                    }
+                                // Adicionar o usuário à sala
+                                int userIndex = rooms[i].participants;
+                                rooms[i].users[userIndex].socket = socket;
+                                strncpy(rooms[i].users[userIndex].username, clients[j].username, sizeof(rooms[i].users[userIndex].username));
 
-                                    // Copiar o nome de usuário para a estrutura Client
-                                    strncpy(clients[j].username, username, sizeof(clients[j].username));
-
-                                    // Adicionar o usuário à sala
-                                    int userIndex = rooms[i].participants;
-                                    rooms[i].users[userIndex].socket = socket;
-                                    strncpy(rooms[i].users[userIndex].username, username, sizeof(rooms[i].users[userIndex].username));
-
-                                    rooms[i].participants++;
-                                    break;
-                                }
+                                rooms[i].participants++;
+                                break;
                             }
                         }
                         sprintf(response, "VVocê entrou na sala %s.\n", rooms[i].name);
