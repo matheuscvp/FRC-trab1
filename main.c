@@ -10,12 +10,6 @@
 #define MAX_ROOMS 5
 #define MAX_ROOM_NAME 200
 #define MAX_USERS_IN_ROOM 15
-#define CLIENT_ID "747377703455-4pvmqqlo6ckc34he9aqtnqafbfj71pb3.apps.googleusercontent.com"
-#define CLIENT_SECRET "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"
-#define REDIRECT_URI "https://localhost:8888"
-#define AUTHORIZATION_ENDPOINT "https://accounts.google.com/o/oauth2/auth"
-#define TOKEN_ENDPOINT "https://accounts.google.com/o/oauth2/token"
-#define SCOPE "email"
 
 struct User
 {
