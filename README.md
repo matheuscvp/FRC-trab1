@@ -35,7 +35,7 @@ Utilize os mesmos comandos usados para rodar a main, depois iniciar o cliente, s
 - Prossiga para a URL fornecida
 - Faça sua autenticação com a seguinte conta google => Conta: projetochatredesunb@gmail.com Senha: redesunb
 - Após entrar com a conta google copie o conteúdo do header "code= " presente na URL que foi direcionado
-  [image](./assets/URL_OAUTH.png)
-  [image](./assets/header-code_OAuth.png)
+  ![image](./assets/URL_OAUTH.png)
+  ![image](./assets/header-code_OAuth.png)
 - Cole o code no terminal da aplicação e digite enter
 - Você foi autenticado!
