@@ -4,12 +4,19 @@
 #include <unistd.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <curl/curl.h>
 
 #define MAX_CLIENTS 10
 #define BUFFER_SIZE 512
 #define MAX_ROOMS 5
 #define MAX_ROOM_NAME 200
 #define MAX_USERS_IN_ROOM 15
+#define CLIENT_ID "747377703455-4pvmqqlo6ckc34he9aqtnqafbfj71pb3.apps.googleusercontent.com"
+#define CLIENT_SECRET "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"
+#define REDIRECT_URI "https://localhost:8888"
+#define AUTHORIZATION_ENDPOINT "https://accounts.google.com/o/oauth2/auth"
+#define TOKEN_ENDPOINT "https://accounts.google.com/o/oauth2/token"
+#define SCOPE "openid"
 
 struct User
 {
@@ -34,6 +41,12 @@ struct Client
     char username[50];
 };
 
+struct memory
+{
+    char *response;
+    size_t size;
+};
+
 void send_menu(int socket);
 void list_rooms(int socket, struct ChatRoom rooms[], int totalRooms);
 void create_room(int socket, struct ChatRoom rooms[], int *totalRooms);
@@ -41,6 +54,14 @@ void join_room(int socket, struct ChatRoom rooms[], int totalRooms, struct Clien
 void leave_room(int socket, struct ChatRoom rooms[], int totalRooms, struct Client clients[], int totalClients);
 void disconnect_client(int socket, struct ChatRoom rooms[], int totalRooms, struct Client clients[], int totalClients);
 void list_users(int socket, struct ChatRoom rooms[], int totalRooms, int roomID);
+
+size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userdata)
+{
+    size_t num_bytes = size * nmemb;
+    printf("%.*s", num_bytes, ptr);
+    printf("%.*s", userdata);
+    return num_bytes;
+}
 
 int main()
 {
@@ -53,6 +74,8 @@ int main()
     char client_message[BUFFER_SIZE] = "Connected to the chatroom.\n";
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
+    CURL *curl;
+    CURLcode res;
 
     memset(buffer, 0, sizeof(buffer));
 
@@ -146,6 +169,56 @@ int main()
 
                         username[valread - 2] = '\0';
                     }
+
+                    // send(new_socket, "Nós trabalhamos com autenticação google, por favor, prossiga com uma conta gmail válida\n",
+                    //      strlen("Nós trabalhamos com autenticação google, por favor, prossiga com uma conta gmail válida\n"), 0);
+
+                    curl_global_init(CURL_GLOBAL_DEFAULT);
+                    curl = curl_easy_init();
+
+                    if (!curl)
+                    {
+                        fprintf(stderr, "Failed to initialize curl\n");
+                        exit(1);
+                    }
+
+                    char authorizationUrl[BUFFER_SIZE];
+                    snprintf(authorizationUrl, sizeof(authorizationUrl), "%s?client_id=%s&redirect_uri=%s&response_type=code&scope=%s",
+                             AUTHORIZATION_ENDPOINT, CLIENT_ID, REDIRECT_URI, SCOPE);
+
+                    send(new_socket, "Por favor visite a seguinte URL para autenticar:\n", strlen("Por favor visite a seguinte URL para autenticar:\n"), 0);
+                    send(new_socket, authorizationUrl, strlen(authorizationUrl), 0);
+
+                    char authorizationCode[BUFFER_SIZE];
+
+                    send(new_socket, "\nEnter the authorization code: ", strlen("Enter the authorization code: "), 0);
+
+                    valread = read(new_socket, authorizationCode, sizeof(authorizationCode) - 1);
+
+                    if (valread < BUFFER_SIZE)
+                    {
+
+                        authorizationCode[valread - 2] = '\0';
+                    }
+
+                    char requestBody[BUFFER_SIZE];
+                    snprintf(requestBody, sizeof(requestBody), "code=%s&client_id=%s&client_secret=%s&redirect_uri=%s&grant_type=authorization_code",
+                             authorizationCode, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+
+                    curl_easy_setopt(curl, CURLOPT_URL, TOKEN_ENDPOINT);
+                    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+                    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, requestBody);
+                    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+                    res = curl_easy_perform(curl);
+
+                    if (res != CURLE_OK)
+                    {
+                        fprintf(stderr, "Failed to perform request: %s\n", curl_easy_strerror(res));
+                    }
+
+                    // curl_easy_cleanup(curl);
+
+                    // curl_global_cleanup();
 
                     // Enviar menu interativo para o cliente
                     send_menu(new_socket);
